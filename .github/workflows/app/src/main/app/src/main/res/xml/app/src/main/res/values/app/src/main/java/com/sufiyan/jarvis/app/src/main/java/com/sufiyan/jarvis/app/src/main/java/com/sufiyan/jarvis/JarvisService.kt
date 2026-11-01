@@ -111,7 +111,7 @@ class JarvisService : AccessibilityService() {
         running = true; stopFlag = false; setBtn(true)
         worker.execute {
             try {
-                speakWait("Boliye")
+                say("Boliye"); Thread.sleep(800)
                 val cmd = listenBlocking()
                 if (cmd.isBlank()) speakWait("Samajh nahi aaya") else runTask(key, cmd)
             } finally { running = false; setBtn(false) }
@@ -122,12 +122,12 @@ class JarvisService : AccessibilityService() {
     private fun say(t: String) { main.post { if (ttsReady) tts?.speak(t, TextToSpeech.QUEUE_FLUSH, null, "u") } }
 
     private fun speakWait(t: String) {
-        val l = CountDownLatch(1); speakLatch = l; say(t); l.await(20, TimeUnit.SECONDS)
+        val l = CountDownLatch(1); speakLatch = l; say(t); l.await(6, TimeUnit.SECONDS)
     }
 
     private fun listenBlocking(): String {
         heard.clear(); main.post { startListen() }
-        val r = heard.poll(15, TimeUnit.SECONDS) ?: ""
+        val r = heard.poll(12, TimeUnit.SECONDS) ?: ""
         main.post { recognizer?.stopListening() }
         return r
     }
@@ -157,7 +157,16 @@ class JarvisService : AccessibilityService() {
     }
 
     // ---------- agent loop ----------
+    private fun quickOpen(cmd: String): Boolean {
+        val c = cmd.trim().trimEnd('.', '!', '?')
+        val name = Regex("^open\\s+(.+)$", RegexOption.IGNORE_CASE).find(c)?.groupValues?.get(1)
+            ?: Regex("^(.+?)\\s+(?:kholo|khol do|kholdo|open karo|open|खोलो|खोल दो)$", RegexOption.IGNORE_CASE).find(c)?.groupValues?.get(1)
+            ?: return false
+        return if (openApp(name.trim())) { say("Khol diya"); true } else false
+    }
+
     private fun runTask(key: String, cmd: String) {
+        if (quickOpen(cmd)) return
         val hist = ArrayList<String>()
         for (step in 1..15) {
             if (stopFlag) return
@@ -181,7 +190,7 @@ class JarvisService : AccessibilityService() {
                 "done" -> { speakWait(msg.ifBlank { "Ho gaya" }); return }
                 else -> {}
             }
-            Thread.sleep(1300)
+            Thread.sleep(600)
         }
         speakWait("Kaafi steps ho gaye, ruk raha hoon")
     }
@@ -191,10 +200,10 @@ class JarvisService : AccessibilityService() {
         val list = ArrayList<AccessibilityNodeInfo>()
         val sb = StringBuilder("package=${root.packageName}\n")
         fun walk(n: AccessibilityNodeInfo?) {
-            if (n == null || list.size >= 70) return
+            if (n == null || list.size >= 50) return
             if (n.isVisibleToUser) {
-                val t = n.text?.toString()?.take(50)
-                val d = n.contentDescription?.toString()?.take(50)
+                val t = n.text?.toString()?.take(40)
+                val d = n.contentDescription?.toString()?.take(40)
                 val fl = ArrayList<String>()
                 if (n.isClickable) fl.add("click"); if (n.isEditable) fl.add("edit"); if (n.isScrollable) fl.add("scroll")
                 if (!t.isNullOrBlank() || !d.isNullOrBlank() || fl.isNotEmpty()) {
